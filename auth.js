@@ -1,15 +1,5 @@
-import { auth, db } from './firebaseConfig.js';
-import { 
-    createUserWithEmailAndPassword, 
-    signInWithEmailAndPassword, 
-    signOut, 
-    onAuthStateChanged,
-    updateProfile 
-} from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
-import { doc, setDoc } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
-
 // Auth state listener
-onAuthStateChanged(auth, (user) => {
+firebase.auth().onAuthStateChanged((user) => {
     const currentPage = window.location.pathname.split('/').pop();
     
     if (user) {
@@ -45,21 +35,21 @@ function updateUserUI(user) {
 }
 
 // Sign up function
-export async function signupUser(email, password, fullName) {
+async function signupUser(email, password, fullName) {
     try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
         
         // Update profile with display name
-        await updateProfile(user, {
+        await user.updateProfile({
             displayName: fullName
         });
         
         // Create user document in Firestore
-        await setDoc(doc(db, 'users', user.uid), {
+        await firebase.firestore().collection('users').doc(user.uid).set({
             email: user.email,
             displayName: fullName,
-            createdAt: new Date(),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             monthlyBudget: 0,
             currency: 'USD'
         });
@@ -72,9 +62,9 @@ export async function signupUser(email, password, fullName) {
 }
 
 // Login function
-export async function loginUser(email, password) {
+async function loginUser(email, password) {
     try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
         return { success: true, user: userCredential.user };
     } catch (error) {
         console.error('Login error:', error);
@@ -83,9 +73,9 @@ export async function loginUser(email, password) {
 }
 
 // Logout function
-export async function logoutUser() {
+async function logoutUser() {
     try {
-        await signOut(auth);
+        await firebase.auth().signOut();
         return { success: true };
     } catch (error) {
         console.error('Logout error:', error);
