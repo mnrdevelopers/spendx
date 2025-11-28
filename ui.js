@@ -58,13 +58,16 @@ function showNotification(message, type = 'info') {
         z-index: 9999;
         min-width: 300px;
         animation: slideInRight 0.3s ease;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     `;
     
     document.body.appendChild(notification);
     
     // Remove after 3 seconds
     setTimeout(() => {
-        notification.style.animation = 'slideOutRight 0.3s ease';
+        // Use the defined slideOutRight animation
+        notification.style.animation = 'slideOutRight 0.3s ease forwards';
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
@@ -72,6 +75,48 @@ function showNotification(message, type = 'info') {
         }, 300);
     }, 3000);
 }
+
+// CRITICAL FIX: Custom Confirmation Modal Utility
+function showConfirmModal(message, confirmText = 'Delete') {
+    return new Promise(resolve => {
+        const modalElement = document.getElementById('confirmationModal');
+        const modalMessage = document.getElementById('confirmationModalMessage');
+        const confirmBtn = document.getElementById('confirmModalBtn');
+        
+        if (!modalElement || !modalMessage || !confirmBtn) {
+            console.error("Confirmation modal elements not found. Defaulting to true.");
+            resolve(true); // Fallback in case HTML is missing
+            return;
+        }
+
+        modalMessage.textContent = message;
+        confirmBtn.textContent = confirmText;
+
+        // Ensure we remove previous listeners to prevent multiple calls
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+
+        // Listener for the confirm button
+        newConfirmBtn.addEventListener('click', function handler() {
+            modal.hide();
+            resolve(true);
+            newConfirmBtn.removeEventListener('click', handler);
+        });
+
+        // Listener for modal close (cancel)
+        modalElement.addEventListener('hidden.bs.modal', function handler() {
+            // Check if the promise has already been resolved by the confirm button
+            if (newConfirmBtn.parentNode) {
+                resolve(false);
+            }
+            modalElement.removeEventListener('hidden.bs.modal', handler);
+        }, { once: true });
+    });
+}
+
 
 // Debounce function for search inputs
 function debounce(func, wait) {
@@ -167,6 +212,8 @@ document.addEventListener('DOMContentLoaded', function() {
         form.addEventListener('submit', function(e) {
             const submitBtn = this.querySelector('button[type="submit"]');
             if (submitBtn) {
+                // Remove existing loading class to ensure the new one takes effect
+                submitBtn.classList.remove('btn-loading'); 
                 submitBtn.classList.add('btn-loading');
             }
         });
