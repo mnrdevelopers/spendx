@@ -27,10 +27,12 @@ function hideGlobalLoader() {
 
 // Format currency based on App Settings
 function formatCurrency(amount) {
+    // Ensure amount is a number
+    const numAmount = parseFloat(amount) || 0;
     return new Intl.NumberFormat(appSettings.locale, {
         style: 'currency',
         currency: appSettings.currency
-    }).format(amount);
+    }).format(numAmount);
 }
 
 // Update App Currency State and UI
@@ -236,10 +238,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     initializeDateUI();
     
-    // REMOVED: Page entry animation stagger logic
-    // The previous loop that added 'animationDelay' to elements has been removed
-    // to stop the cards from animating in one by one.
-    
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => {
         item.addEventListener('click', function() {
@@ -274,7 +272,10 @@ document.addEventListener('DOMContentLoaded', function() {
             firebase.firestore().collection('users').doc(user.uid).get()
                 .then((doc) => {
                     if (doc.exists && doc.data().currency) {
+                        // 1. Update the internal state
                         updateAppCurrency(doc.data().currency);
+                        // 2. Broadcast event to all other scripts to re-render
+                        window.dispatchEvent(new Event('currency-updated'));
                     }
                 })
                 .catch((error) => console.log("Error loading user settings:", error));
