@@ -9,6 +9,7 @@ async function initializeExpenses() {
         await loadExpenses();
         setupEventListeners();
         updateSummary();
+        updateDashboardExpenses();
     } catch (error) {
         console.error('Error initializing expenses:', error);
         showNotification('Error loading expenses', 'danger');
@@ -18,22 +19,17 @@ async function initializeExpenses() {
 // Load expenses from Firestore
 async function loadExpenses() {
     const expensesList = document.getElementById('expensesList');
-    if (!expensesList) return;
-    
-    // Show skeleton loaders
-    expensesList.innerHTML = `
-        <div class="skeleton-expense"></div>
-        <div class="skeleton-expense"></div>
-        <div class="skeleton-expense"></div>
-    `;
+    // If not on expenses page, we might still be on dashboard needing data
+    // but we only show skeleton if the list container exists
+    if (expensesList) {
+        expensesList.innerHTML = `
+            <div class="skeleton-expense"></div>
+            <div class="skeleton-expense"></div>
+            <div class="skeleton-expense"></div>
+        `;
+    }
     
     const user = firebase.auth().currentUser;
-    const q = firebase.firestore()
-        .collection('users')
-        .doc(user.uid)
-        .collection('expenses')
-        .orderBy('date', 'desc');
-    
     // Use onSnapshot for real-time updates (better UX)
     firebase.firestore()
         .collection('users')
@@ -50,6 +46,7 @@ async function loadExpenses() {
             });
             renderExpenses();
             updateSummary();
+            updateDashboardExpenses(); // Also update dashboard if visible
         }, error => {
             console.error('Error listening to expenses:', error);
             showNotification('Error loading real-time expenses', 'danger');
@@ -100,7 +97,7 @@ function renderExpenses() {
     
     // Add delete event listeners
     document.querySelectorAll('.delete-expense').forEach(button => {
-        // Remove existing listener to prevent stacking if renderExpenses runs multiple times
+        // Remove existing listener to prevent stacking
         button.removeEventListener('click', handleDeleteExpense); 
         button.addEventListener('click', handleDeleteExpense);
     });
@@ -111,7 +108,6 @@ async function handleDeleteExpense(e) {
     const expenseId = e.currentTarget.getAttribute('data-id');
     const expenseItem = document.querySelector(`.expense-item[data-id="${expenseId}"]`);
     
-    // CRITICAL FIX: Replace native confirm() with custom modal
     const confirmed = await showConfirmModal(
         'This will permanently delete the expense record. Are you sure?', 
         'Delete Expense'
@@ -122,13 +118,9 @@ async function handleDeleteExpense(e) {
     }
     
     try {
-        // Add removing animation
         expenseItem.classList.add('removing');
-        
-        // Wait for animation to complete
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        // Delete from Firestore
         const user = firebase.auth().currentUser;
         await firebase.firestore()
             .collection('users')
@@ -136,8 +128,6 @@ async function handleDeleteExpense(e) {
             .collection('expenses')
             .doc(expenseId)
             .delete();
-        
-        // Local array and render will be updated by the onSnapshot listener
         
         showNotification('Expense deleted successfully', 'success');
     } catch (error) {
@@ -150,8 +140,6 @@ async function handleDeleteExpense(e) {
 async function addExpense(expenseData) {
     try {
         const user = firebase.auth().currentUser;
-        
-        // Validate amount is a number
         const amount = parseFloat(expenseData.amount);
 
         await firebase.firestore()
@@ -166,8 +154,6 @@ async function addExpense(expenseData) {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         
-        // Local array and render will be updated by the onSnapshot listener
-        
         showNotification('Expense added successfully', 'success');
         return true;
     } catch (error) {
@@ -177,7 +163,7 @@ async function addExpense(expenseData) {
     }
 }
 
-// Update summary statistics
+// Update summary statistics (Expenses Page)
 function updateSummary() {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -206,29 +192,61 @@ function updateSummary() {
     if (monthElement) monthElement.textContent = formatCurrency(monthTotal);
 }
 
+// Update Dashboard Statistics (Dashboard Page)
+async function updateDashboardExpenses() {
+    const todaySpentEl = document.getElementById('todaySpent');
+    const monthSpentEl = document.getElementById('monthSpent');
+    const recentListEl = document.getElementById('recentExpenses');
+    
+    if (!todaySpentEl && !monthSpentEl && !recentListEl) return;
+
+    const stats = await getSpendingStats();
+    
+    if (todaySpentEl) todaySpentEl.textContent = formatCurrency(stats.today);
+    if (monthSpentEl) monthSpentEl.textContent = formatCurrency(stats.month);
+
+    if (recentListEl) {
+        const recentExpenses = await getRecentExpenses(5);
+        if (recentExpenses.length === 0) {
+            recentListEl.innerHTML = '<div class="text-muted text-center py-3">No recent expenses</div>';
+        } else {
+            recentListEl.innerHTML = recentExpenses.map(expense => `
+                <div class="expense-item" data-category="${expense.category}">
+                    <div class="expense-info">
+                        <div class="expense-category">
+                            <i class="${categoryIcons[expense.category] || categoryIcons.Other} me-2"></i>
+                            ${expense.category}
+                        </div>
+                        <div class="expense-date">${formatDate(expense.date)}</div>
+                    </div>
+                    <div class="expense-amount" style="color: ${categoryColors[expense.category] || categoryColors.Other}">
+                        ${formatCurrency(expense.amount)}
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+}
+
 // Setup event listeners
 function setupEventListeners() {
-    // Add expense form
     const addExpenseForm = document.getElementById('addExpenseForm');
     if (addExpenseForm) {
-        addExpenseForm.removeEventListener('submit', handleAddExpenseSubmit); // Prevent double listeners
+        addExpenseForm.removeEventListener('submit', handleAddExpenseSubmit); 
         addExpenseForm.addEventListener('submit', handleAddExpenseSubmit);
     }
     
-    // Category filter
     const categoryFilter = document.getElementById('categoryFilter');
     if (categoryFilter) {
-        categoryFilter.removeEventListener('change', handleCategoryFilterChange); // Prevent double listeners
+        categoryFilter.removeEventListener('change', handleCategoryFilterChange); 
         categoryFilter.addEventListener('change', handleCategoryFilterChange);
     }
     
-    // Modal show event - reset form
     const expenseModal = document.getElementById('addExpenseModal');
     if (expenseModal) {
         expenseModal.addEventListener('show.bs.modal', () => {
             const form = document.getElementById('addExpenseForm');
             if (form) form.reset();
-            // Set date to today by default
             const dateInput = document.getElementById('expenseDate');
             if (dateInput) dateInput.value = formatDateForInput(new Date());
         });
@@ -237,7 +255,6 @@ function setupEventListeners() {
 
 async function handleAddExpenseSubmit(e) {
     e.preventDefault();
-    
     const addExpenseForm = e.currentTarget;
     const saveBtn = document.getElementById('saveExpenseBtn');
     const modal = bootstrap.Modal.getInstance(document.getElementById('addExpenseModal'));
@@ -253,7 +270,6 @@ async function handleAddExpenseSubmit(e) {
     };
     
     const success = await addExpense(expenseData);
-    
     saveBtn.classList.remove('btn-loading');
     
     if (success) {
@@ -307,7 +323,6 @@ async function getSpendingStats() {
     
     try {
         const user = firebase.auth().currentUser;
-        // Query expenses from the start of the current month
         const expensesQuery = firebase.firestore()
             .collection('users')
             .doc(user.uid)
@@ -320,16 +335,12 @@ async function getSpendingStats() {
         
         querySnapshot.forEach((doc) => {
             const expense = doc.data();
-            const expenseDate = new Date(expense.date);
-            
-            // Check if expense date is today (by converting to year/month/day string)
-            const expenseDateString = expense.date; // already YYYY-MM-DD
+            const expenseDateString = expense.date; 
             const todayDateString = today.toISOString().split('T')[0];
             
             if (expenseDateString === todayDateString) {
                 todaySpent += expense.amount;
             }
-            
             monthSpent += expense.amount;
         });
         
@@ -340,11 +351,17 @@ async function getSpendingStats() {
     }
 }
 
+// Listen for global currency updates from UI.js
+window.addEventListener('currency-updated', () => {
+    // Re-render expenses with new currency
+    renderExpenses();
+    updateSummary();
+    updateDashboardExpenses();
+});
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Only initialize if the user is authenticated and the current page is an expense-related page
     if (window.location.pathname.includes('expenses.html') || window.location.pathname.includes('dashboard.html')) {
-        // Wait for Firebase auth state to ensure user is logged in before initializing
         firebase.auth().onAuthStateChanged((user) => {
             if (user) {
                 initializeExpenses();
