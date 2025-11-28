@@ -22,6 +22,10 @@
 .stat-card {
     text-align: center;
     padding: 1.5rem 1rem;
+    display: flex; /* Ensure content is centered vertically on larger screens */
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 
 .stat-card h3 {
@@ -62,6 +66,7 @@
     background: rgba(255, 255, 255, 0.05);
     border-radius: var(--border-radius-sm);
     border-left: 4px solid var(--primary);
+    position: relative; /* For action buttons positioning */
 }
 
 .expense-item:last-child, .emi-item:last-child {
@@ -70,21 +75,30 @@
 
 .expense-info, .emi-info {
     flex: 1;
+    min-width: 0; /* Ensures flex item shrinks properly */
 }
 
 .expense-amount, .emi-amount {
     font-weight: 600;
     font-size: 1.1rem;
+    margin-left: 1rem;
+    flex-shrink: 0; /* Prevents amount from shrinking */
 }
 
 .expense-category, .emi-title {
     font-weight: 500;
     margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .expense-note, .emi-details {
     color: var(--gray);
     font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .expense-date, .emi-date {
@@ -135,7 +149,7 @@
 .emi-item.completed {
     border-left-color: var(--success);
     background: rgba(16, 185, 129, 0.1);
-    opacity: 0.7;
+    opacity: 0.8; /* Slight opacity decrease for completed items */
 }
 
 .emi-progress {
@@ -240,14 +254,16 @@
 
 .category-percentage {
     font-weight: 600;
-    min-width: 60px;
+    min-width: 100px; /* Give more space for percentage and amount */
     text-align: right;
 }
 
-/* Action Buttons */
+/* Action Buttons for Lists */
 .action-buttons {
     display: flex;
     gap: 0.5rem;
+    margin-left: 1rem;
+    flex-shrink: 0;
 }
 
 .btn-sm {
@@ -291,4 +307,32 @@
 .emi-list::-webkit-scrollbar-thumb {
     background: var(--gray);
     border-radius: 2px;
+}
+
+/* Mobile specific list adjustments (from responsive.css, adjusted for better structure) */
+@media (max-width: 767px) {
+    .expense-item, .emi-item {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .expense-info, .emi-info {
+        flex-basis: 100%;
+        margin-bottom: 0.5rem;
+    }
+
+    .expense-amount, .emi-amount {
+        order: 1; /* Move amount to start of line 2 */
+        margin-left: 0;
+    }
+
+    .action-buttons {
+        order: 2; /* Move buttons to end of line 2 */
+        margin-left: auto;
+    }
+
+    .emi-progress {
+        flex-basis: 100%;
+        margin-top: 0.5rem;
+    }
 }
