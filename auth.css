@@ -1,0 +1,98 @@
+/* Auth Specific CSS */
+:root {
+    --primary: #2563eb;
+    --dark: #0f172a;
+    --darker: #020617;
+}
+
+body.auth-page {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: linear-gradient(135deg, var(--darker) 0%, var(--dark) 50%, #1e1b4b 100%);
+    min-height: 100vh;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-container {
+    width: 100%;
+    padding: 1rem;
+    max-width: 450px;
+    position: relative;
+}
+
+.back-home {
+    position: absolute;
+    top: -50px;
+    left: 0;
+}
+
+.back-link {
+    color: rgba(255,255,255,0.7);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.back-link:hover {
+    color: white;
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+.auth-tabs {
+    display: flex;
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 20px;
+}
+
+.auth-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.auth-tab.active {
+    background: var(--primary);
+    color: white;
+}
+
+.form-control {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: white;
+}
+
+.form-control:focus {
+    background: rgba(255,255,255,0.1);
+    border-color: var(--primary);
+    color: white;
+    box-shadow: none;
+}
+
+.input-group-text {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.5);
+}
+
+.btn-primary {
+    background-color: var(--primary);
+    border: none;
+    padding: 12px;
+}
