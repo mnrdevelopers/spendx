@@ -34,17 +34,26 @@ async function loadEMIs() {
         .collection('emis')
         .orderBy('startDate', 'desc');
     
-    const querySnapshot = await q.get();
-    emis = [];
-    
-    querySnapshot.forEach((doc) => {
-        emis.push({
-            id: doc.id,
-            ...doc.data()
+    // Use onSnapshot for real-time updates (better UX)
+    firebase.firestore()
+        .collection('users')
+        .doc(user.uid)
+        .collection('emis')
+        .orderBy('startDate', 'desc')
+        .onSnapshot(querySnapshot => {
+            emis = [];
+            querySnapshot.forEach((doc) => {
+                emis.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+            renderEMIs();
+            updateEMISummary();
+        }, error => {
+            console.error('Error listening to EMIs:', error);
+            showNotification('Error loading real-time EMIs', 'danger');
         });
-    });
-    
-    renderEMIs();
 }
 
 // Render EMIs list
@@ -135,12 +144,16 @@ function getNextDueDate(emi) {
 // Get due status for styling
 function getDueStatus(dueDate) {
     const today = new Date();
+    // Ensure both dates are only compared by day (ignore time)
     const due = new Date(dueDate);
-    const diffTime = due - today;
+    due.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    const diffTime = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     if (diffDays < 0) return 'overdue';
-    if (diffDays <= 3) return 'due-soon';
+    if (diffDays <= 7) return 'due-soon'; // 7 days is a better threshold for "due soon"
     return '';
 }
 
@@ -150,6 +163,16 @@ async function handleMarkPaid(e) {
     const emi = emis.find(e => e.id === emiId);
     
     if (!emi) return;
+
+    // Use a custom confirmation modal before proceeding
+    const confirmed = await showConfirmModal(
+        `Mark "${emi.title}" for ${formatCurrency(emi.monthlyAmount)} as paid?`, 
+        'Mark Paid'
+    );
+    
+    if (!confirmed) {
+        return;
+    }
     
     try {
         const newPaidMonths = emi.paidMonths + 1;
@@ -165,12 +188,7 @@ async function handleMarkPaid(e) {
                 paidMonths: newPaidMonths
             });
         
-        // Update local array
-        emi.paidMonths = newPaidMonths;
-        
-        // Re-render
-        renderEMIs();
-        updateEMISummary();
+        // Local array and render will be updated by the onSnapshot listener
         
         showNotification('EMI marked as paid', 'success');
     } catch (error) {
@@ -183,8 +201,14 @@ async function handleMarkPaid(e) {
 async function handleDeleteEMI(e) {
     const emiId = e.currentTarget.getAttribute('data-id');
     const emiItem = document.querySelector(`.emi-item[data-id="${emiId}"]`);
+
+    // CRITICAL FIX: Replace native confirm() with custom modal
+    const confirmed = await showConfirmModal(
+        'This will permanently delete the EMI record. Are you sure?', 
+        'Delete EMI'
+    );
     
-    if (!confirm('Are you sure you want to delete this EMI?')) {
+    if (!confirmed) {
         return;
     }
     
@@ -204,12 +228,7 @@ async function handleDeleteEMI(e) {
             .doc(emiId)
             .delete();
         
-        // Remove from local array
-        emis = emis.filter(emi => emi.id !== emiId);
-        
-        // Re-render
-        renderEMIs();
-        updateEMISummary();
+        // Local array and render will be updated by the onSnapshot listener
         
         showNotification('EMI deleted successfully', 'success');
     } catch (error) {
@@ -222,32 +241,28 @@ async function handleDeleteEMI(e) {
 async function addEMI(emiData) {
     try {
         const user = firebase.auth().currentUser;
-        const docRef = await firebase.firestore()
+        
+        // Validate EMI amounts/months are numbers
+        const monthlyAmount = parseFloat(emiData.monthlyAmount);
+        const totalMonths = parseInt(emiData.totalMonths);
+        const paidMonths = parseInt(emiData.paidMonths) || 0;
+        const dueDate = parseInt(emiData.dueDate);
+
+        await firebase.firestore()
             .collection('users')
             .doc(user.uid)
             .collection('emis')
             .add({
-                ...emiData,
-                monthlyAmount: parseFloat(emiData.monthlyAmount),
-                totalMonths: parseInt(emiData.totalMonths),
-                paidMonths: parseInt(emiData.paidMonths) || 0,
-                dueDate: parseInt(emiData.dueDate),
+                title: emiData.title,
+                monthlyAmount: monthlyAmount,
+                totalMonths: totalMonths,
+                paidMonths: paidMonths,
+                dueDate: dueDate,
                 startDate: emiData.startDate,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         
-        // Add to local array
-        emis.unshift({
-            id: docRef.id,
-            ...emiData,
-            monthlyAmount: parseFloat(emiData.monthlyAmount),
-            totalMonths: parseInt(emiData.totalMonths),
-            paidMonths: parseInt(emiData.paidMonths) || 0,
-            dueDate: parseInt(emiData.dueDate)
-        });
-        
-        renderEMIs();
-        updateEMISummary();
+        // Local array and render will be updated by the onSnapshot listener
         
         showNotification('EMI added successfully', 'success');
         return true;
@@ -284,42 +299,15 @@ function setupEventListeners() {
     // Add EMI form
     const addEMIForm = document.getElementById('addEMIForm');
     if (addEMIForm) {
-        addEMIForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const saveBtn = document.getElementById('saveEMIBtn');
-            const modal = bootstrap.Modal.getInstance(document.getElementById('addEMIModal'));
-            
-            saveBtn.classList.add('btn-loading');
-            
-            const formData = new FormData(addEMIForm);
-            const emiData = {
-                title: formData.get('title'),
-                monthlyAmount: formData.get('monthlyAmount'),
-                totalMonths: formData.get('totalMonths'),
-                paidMonths: formData.get('paidMonths'),
-                dueDate: formData.get('dueDate'),
-                startDate: formData.get('startDate')
-            };
-            
-            const success = await addEMI(emiData);
-            
-            saveBtn.classList.remove('btn-loading');
-            
-            if (success) {
-                addEMIForm.reset();
-                modal.hide();
-            }
-        });
+        addEMIForm.removeEventListener('submit', handleAddEMISubmit); // Prevent double listeners
+        addEMIForm.addEventListener('submit', handleAddEMISubmit);
     }
     
     // Status filter
     const statusFilter = document.getElementById('statusFilter');
     if (statusFilter) {
-        statusFilter.addEventListener('change', (e) => {
-            currentStatusFilter = e.target.value;
-            renderEMIs();
-        });
+        statusFilter.removeEventListener('change', handleStatusFilterChange); // Prevent double listeners
+        statusFilter.addEventListener('change', handleStatusFilterChange);
     }
     
     // Modal show event - reset form and set default dates
@@ -339,17 +327,52 @@ function setupEventListeners() {
     }
 }
 
+async function handleAddEMISubmit(e) {
+    e.preventDefault();
+    
+    const addEMIForm = e.currentTarget;
+    const saveBtn = document.getElementById('saveEMIBtn');
+    const modal = bootstrap.Modal.getInstance(document.getElementById('addEMIModal'));
+    
+    saveBtn.classList.add('btn-loading');
+    
+    const formData = new FormData(addEMIForm);
+    const emiData = {
+        title: formData.get('title'),
+        monthlyAmount: formData.get('monthlyAmount'),
+        totalMonths: formData.get('totalMonths'),
+        paidMonths: formData.get('paidMonths'),
+        dueDate: formData.get('dueDate'),
+        startDate: formData.get('startDate')
+    };
+    
+    const success = await addEMI(emiData);
+    
+    saveBtn.classList.remove('btn-loading');
+    
+    if (success) {
+        addEMIForm.reset();
+        modal.hide();
+    }
+}
+
+function handleStatusFilterChange(e) {
+    currentStatusFilter = e.target.value;
+    renderEMIs();
+}
+
+
 // Get upcoming EMIs for dashboard
 async function getUpcomingEMIs(limit = 3) {
     if (!firebase.auth().currentUser) return [];
     
     try {
         const user = firebase.auth().currentUser;
+        // Fetch all non-completed EMIs and do the sorting/limiting client-side
         const q = firebase.firestore()
             .collection('users')
             .doc(user.uid)
-            .collection('emis')
-            .where('paidMonths', '<', 'totalMonths');
+            .collection('emis'); 
         
         const querySnapshot = await q.get();
         const upcomingEMIs = [];
@@ -359,7 +382,9 @@ async function getUpcomingEMIs(limit = 3) {
                 id: doc.id,
                 ...doc.data()
             };
-            
+
+            if (emi.paidMonths >= emi.totalMonths) return; // Skip completed
+
             // Calculate next due date
             emi.nextDue = getNextDueDate(emi);
             emi.dueStatus = getDueStatus(emi.nextDue);
@@ -385,7 +410,13 @@ async function getNextEMIDue() {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    if (firebase.auth().currentUser && (window.location.pathname.includes('emis.html') || window.location.pathname.includes('dashboard.html'))) {
-        initializeEMIs();
+    // Only initialize if the user is authenticated and the current page is an EMI-related page
+    if (window.location.pathname.includes('emis.html') || window.location.pathname.includes('dashboard.html')) {
+        // Wait for Firebase auth state to ensure user is logged in before initializing
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                initializeEMIs();
+            }
+        });
     }
 });
