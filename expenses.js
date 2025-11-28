@@ -1,24 +1,9 @@
-import { auth, db } from './firebaseConfig.js';
-import { 
-    collection, 
-    addDoc, 
-    updateDoc, 
-    deleteDoc, 
-    doc, 
-    getDocs, 
-    query, 
-    where, 
-    orderBy,
-    getDoc 
-} from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
-import { formatCurrency, formatDate, showNotification, categoryColors, categoryIcons } from './ui.js';
-
 let expenses = [];
 let currentFilter = '';
 
 // Initialize expenses page
-export async function initializeExpenses() {
-    if (!auth.currentUser) return;
+async function initializeExpenses() {
+    if (!firebase.auth().currentUser) return;
     
     try {
         await loadExpenses();
@@ -42,12 +27,14 @@ async function loadExpenses() {
         <div class="skeleton-expense"></div>
     `;
     
-    const q = query(
-        collection(db, 'users', auth.currentUser.uid, 'expenses'),
-        orderBy('date', 'desc')
-    );
+    const user = firebase.auth().currentUser;
+    const q = firebase.firestore()
+        .collection('users')
+        .doc(user.uid)
+        .collection('expenses')
+        .orderBy('date', 'desc');
     
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await q.get();
     expenses = [];
     
     querySnapshot.forEach((doc) => {
@@ -125,7 +112,13 @@ async function handleDeleteExpense(e) {
         await new Promise(resolve => setTimeout(resolve, 300));
         
         // Delete from Firestore
-        await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'expenses', expenseId));
+        const user = firebase.auth().currentUser;
+        await firebase.firestore()
+            .collection('users')
+            .doc(user.uid)
+            .collection('expenses')
+            .doc(expenseId)
+            .delete();
         
         // Remove from local array
         expenses = expenses.filter(expense => expense.id !== expenseId);
@@ -144,12 +137,17 @@ async function handleDeleteExpense(e) {
 // Add new expense
 async function addExpense(expenseData) {
     try {
-        const docRef = await addDoc(collection(db, 'users', auth.currentUser.uid, 'expenses'), {
-            ...expenseData,
-            amount: parseFloat(expenseData.amount),
-            date: expenseData.date,
-            createdAt: new Date()
-        });
+        const user = firebase.auth().currentUser;
+        const docRef = await firebase.firestore()
+            .collection('users')
+            .doc(user.uid)
+            .collection('expenses')
+            .add({
+                ...expenseData,
+                amount: parseFloat(expenseData.amount),
+                date: expenseData.date,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
         
         // Add to local array
         expenses.unshift({
@@ -251,17 +249,19 @@ function setupEventListeners() {
 }
 
 // Get expenses for dashboard
-export async function getRecentExpenses(limit = 5) {
-    if (!auth.currentUser) return [];
+async function getRecentExpenses(limit = 5) {
+    if (!firebase.auth().currentUser) return [];
     
     try {
-        const q = query(
-            collection(db, 'users', auth.currentUser.uid, 'expenses'),
-            orderBy('date', 'desc'),
-            limit(limit)
-        );
+        const user = firebase.auth().currentUser;
+        const q = firebase.firestore()
+            .collection('users')
+            .doc(user.uid)
+            .collection('expenses')
+            .orderBy('date', 'desc')
+            .limit(limit);
         
-        const querySnapshot = await getDocs(q);
+        const querySnapshot = await q.get();
         const recentExpenses = [];
         
         querySnapshot.forEach((doc) => {
@@ -279,20 +279,22 @@ export async function getRecentExpenses(limit = 5) {
 }
 
 // Get spending statistics for dashboard
-export async function getSpendingStats() {
-    if (!auth.currentUser) return { today: 0, month: 0 };
+async function getSpendingStats() {
+    if (!firebase.auth().currentUser) return { today: 0, month: 0 };
     
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     
     try {
-        const expensesQuery = query(
-            collection(db, 'users', auth.currentUser.uid, 'expenses'),
-            where('date', '>=', monthStart.toISOString().split('T')[0])
-        );
+        const user = firebase.auth().currentUser;
+        const expensesQuery = firebase.firestore()
+            .collection('users')
+            .doc(user.uid)
+            .collection('expenses')
+            .where('date', '>=', monthStart.toISOString().split('T')[0]);
         
-        const querySnapshot = await getDocs(expensesQuery);
+        const querySnapshot = await expensesQuery.get();
         let todaySpent = 0;
         let monthSpent = 0;
         
@@ -316,7 +318,7 @@ export async function getSpendingStats() {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    if (auth.currentUser && (window.location.pathname.includes('expenses.html') || window.location.pathname.includes('dashboard.html'))) {
+    if (firebase.auth().currentUser && (window.location.pathname.includes('expenses.html') || window.location.pathname.includes('dashboard.html'))) {
         initializeExpenses();
     }
 });
