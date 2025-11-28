@@ -1,0 +1,188 @@
+// UI Utility Functions
+
+// Global loader control
+export function showGlobalLoader() {
+    const loader = document.getElementById('globalLoader');
+    if (loader) loader.style.display = 'flex';
+}
+
+export function hideGlobalLoader() {
+    const loader = document.getElementById('globalLoader');
+    if (loader) loader.style.display = 'none';
+}
+
+// Format currency
+export function formatCurrency(amount, currency = 'USD') {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency
+    }).format(amount);
+}
+
+// Format date
+export function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+    });
+}
+
+// Format date for input fields
+export function formatDateForInput(dateString) {
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+}
+
+// Get greeting based on time of day
+export function getTimeGreeting() {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Morning';
+    if (hour < 17) return 'Afternoon';
+    return 'Evening';
+}
+
+// Show notification
+export function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} notification`;
+    notification.textContent = message;
+    
+    // Add styles
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        animation: slideInRight 0.3s ease;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// Debounce function for search inputs
+export function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Initialize date-related UI elements
+export function initializeDateUI() {
+    // Set current date in date inputs
+    const dateInputs = document.querySelectorAll('input[type="date"]');
+    dateInputs.forEach(input => {
+        if (!input.value) {
+            input.value = formatDateForInput(new Date());
+        }
+    });
+    
+    // Update current date display
+    const dateDisplay = document.getElementById('currentDate');
+    if (dateDisplay) {
+        dateDisplay.textContent = new Date().toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+    
+    // Update time greeting
+    const timeGreeting = document.getElementById('timeGreeting');
+    if (timeGreeting) {
+        timeGreeting.textContent = getTimeGreeting();
+    }
+}
+
+// Category color mapping
+export const categoryColors = {
+    'Food': '#f59e0b',
+    'Transport': '#3b82f6',
+    'Shopping': '#8b5cf6',
+    'Bills': '#ef4444',
+    'Entertainment': '#ec4899',
+    'Healthcare': '#10b981',
+    'Other': '#6b7280'
+};
+
+// Category icons mapping
+export const categoryIcons = {
+    'Food': 'fas fa-utensils',
+    'Transport': 'fas fa-car',
+    'Shopping': 'fas fa-shopping-bag',
+    'Bills': 'fas fa-file-invoice-dollar',
+    'Entertainment': 'fas fa-film',
+    'Healthcare': 'fas fa-heartbeat',
+    'Other': 'fas fa-circle'
+};
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    // Hide global loader after page load
+    setTimeout(() => {
+        hideGlobalLoader();
+    }, 1000);
+    
+    // Initialize date-related UI
+    initializeDateUI();
+    
+    // Add animation to page elements
+    const animatedElements = document.querySelectorAll('.page-enter');
+    animatedElements.forEach((element, index) => {
+        element.style.animationDelay = `${index * 0.1}s`;
+    });
+    
+    // Handle bottom navigation active state
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+        item.addEventListener('click', function() {
+            navItems.forEach(nav => nav.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+    
+    // Handle form submissions
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.classList.add('btn-loading');
+            }
+        });
+    });
+});
+
+// Export utility functions for other modules
+export default {
+    showGlobalLoader,
+    hideGlobalLoader,
+    formatCurrency,
+    formatDate,
+    formatDateForInput,
+    getTimeGreeting,
+    showNotification,
+    debounce,
+    categoryColors,
+    categoryIcons
+};
