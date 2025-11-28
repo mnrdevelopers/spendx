@@ -66,9 +66,11 @@ async function changeCurrency(currencyCode) {
     const user = firebase.auth().currentUser;
     if (user) {
         try {
-            await firebase.firestore().collection('users').doc(user.uid).update({
+            // FIX: Use set with merge: true instead of update. 
+            // This creates the document if it doesn't exist.
+            await firebase.firestore().collection('users').doc(user.uid).set({
                 currency: currencyCode
-            });
+            }, { merge: true });
             
             // 3. Reload page to refresh all charts and lists with new currency
             showGlobalLoader();
@@ -274,9 +276,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then((doc) => {
                     if (doc.exists && doc.data().currency) {
                         updateAppCurrency(doc.data().currency);
-                        // Refresh active page parts if needed, but the basic formatCurrency calls
-                        // inside render functions (expenses.js etc) will use the new settings 
-                        // when they run.
                     }
                 })
                 .catch((error) => console.log("Error loading user settings:", error));
